@@ -11,10 +11,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "arduinomux.h"
 #include "monq.h"
+
+/* Some code copied from taylor-uucp. */
+
+#define ICLEAR_IFLAG (BRKINT | ICRNL | IGNBRK | IGNCR | IGNPAR \
+   | INLCR | INPCK | ISTRIP | IXOFF | IXON \
+   | PARMRK | IMAXBEL)
+#define ICLEAR_OFLAG (OPOST)
+#define ICLEAR_CFLAG (CSIZE | PARENB | PARODD | HUPCL)
+#define ISET_CFLAG (CS8 | CREAD | CLOCAL)
+#define ICLEAR_LFLAG (ECHO | ECHOE | ECHOK | ECHONL | ICANON | IEXTEN \
+   | ISIG | NOFLSH | TOSTOP)
+
+/* ---- */
 
 char *device;
 int pin[MAX_QUEUES];
@@ -71,11 +85,26 @@ static void init(void) {
 	};
 	int egid;
 	int i;
+	struct termios ios;
 
 	init_root();
 
 	fd = open(device, O_RDWR|O_NONBLOCK);
 	cerror(device, fd < 0);
+
+	cerror("Failed to get terminal attributes", tcgetattr(fd, &ios));
+	ios.c_iflag &=~ ICLEAR_IFLAG;
+	ios.c_oflag &=~ ICLEAR_OFLAG;
+	ios.c_cflag &=~ ICLEAR_CFLAG;
+	ios.c_cflag |= ISET_CFLAG;
+	ios.c_lflag &=~ ICLEAR_LFLAG;
+	ios.c_cc[VMIN] = 1;
+	ios.c_cc[VTIME] = 0;
+	cfsetispeed(&ios, B115200);
+	cfsetospeed(&ios, B115200);
+
+	cerror("Failed to flush terminal input", ioctl(fd, TCFLSH, 0) < 0);
+	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
 
 	egid = getegid();
 
@@ -139,14 +168,10 @@ static void wait(void) {
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
 
-	tv.tv_sec = 5;
+	tv.tv_sec = 30;
 	tv.tv_usec = 0;
 
 	select(fd + 1, &rfds, NULL, NULL, &tv);
-}
-
-static bool ping(void) {
-	return write(fd, "\n", 1) == 1;
 }
 
 static void process(const char *line) {
@@ -166,9 +191,13 @@ static bool readline(void) {
 
 	wait();
 
+	errno = 0;
 	len = read(fd, &buf[buflen], remaining);
-	if (len <= 0)
+	if (len <= 0) {
+		if (errno == 0)
+			errno = EPIPE;
 		return false;
+	}
 
 	buflen += len;
 	buf[buflen] = 0;
@@ -192,7 +221,7 @@ static bool readline(void) {
 }
 
 static void loop(void) {
-	while (readline() || ping());
+	while (readline());
 	perror(device);
 }
 

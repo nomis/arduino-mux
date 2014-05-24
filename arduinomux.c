@@ -85,7 +85,7 @@ static void init(void) {
 	};
 	int i;
 	struct termios ios;
-	struct stat stat;
+	struct stat mq_st;
 
 	init_root();
 
@@ -110,8 +110,8 @@ static void init(void) {
 		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
 		cerror(mqueue[i], q[i] < 0);
 
-		cerror("fstat", fstat(q[i], &stat));
-		if (stat.st_uid == getuid() && stat.st_gid != group[i])
+		cerror("fstat", fstat(q[i], &mq_st));
+		if (mq_st.st_uid == getuid() && mq_st.st_gid != group[i])
 			cerror("fchown", fchown(q[i], -1, group[i]));
 	}
 }

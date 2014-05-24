@@ -83,7 +83,7 @@ static void init(void) {
 		.mq_maxmsg = 4096,
 		.mq_msgsize = sizeof(mon_t)
 	};
-	int egid;
+	gid_t egid;
 	int i;
 	struct termios ios;
 
@@ -109,7 +109,8 @@ static void init(void) {
 	egid = getegid();
 
 	for (i = 0; i < queues; i++) {
-		cerror(mqueue[i], setegid(group[i]));
+		/* cerror(mqueue[i], setegid(group[i])); */
+		setegid(group[i]);
 
 		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
 		cerror(mqueue[i], q[i] < 0);

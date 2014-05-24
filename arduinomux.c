@@ -131,20 +131,16 @@ static void daemon(void) {
 #endif
 }
 
-static void report(int idx, bool on) {
-	mon_t event;
-
-	gettimeofday(&event.tv, NULL);
-	event.on = on;
-
-	_printf("%lu.%06u: %s %d\n", (unsigned long int)event.tv.tv_sec, (unsigned int)event.tv.tv_usec, mqueue[idx], event.on);
-	mq_send(q[idx], (const char *)&event, sizeof(event), 0);
+static void report(int idx, const mon_t *event) {
+	_printf("%lu.%06u: %s %d\n", (unsigned long int)event->tv.tv_sec, (unsigned int)event->tv.tv_usec, mqueue[idx], event->on);
+	mq_send(q[idx], (const char *)event, sizeof(*event), 0);
 }
 
 static void check(int value) {
 	static bool first = true;
 	static int last[MAX_QUEUES] = { 0 };
 	int state[MAX_QUEUES];
+	mon_t event;
 	int i;
 
 	for (i = 0; i < queues; i++)
@@ -153,9 +149,14 @@ static void check(int value) {
 	if (first) {
 		first = false;
 	} else {
-		for (i = 0; i < queues; i++)
-			if (last[i] != state[i])
-				report(i, state[i] != 0);
+		gettimeofday(&event.tv, NULL);
+
+		for (i = 0; i < queues; i++) {
+			if (last[i] != state[i]) {
+				event.on = state[i];
+				report(i, &event);
+			}
+		}
 	}
 
 	memcpy(last, state, sizeof(last));

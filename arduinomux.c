@@ -106,6 +106,8 @@ static void init(void) {
 	cerror("Failed to flush terminal input", ioctl(fd, TCFLSH, 0) < 0);
 	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
 
+	umask(0);
+
 	for (i = 0; i < queues; i++) {
 		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
 		cerror(mqueue[i], q[i] < 0);

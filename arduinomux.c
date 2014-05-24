@@ -33,7 +33,7 @@
 char *device;
 int pin[MAX_QUEUES];
 char *mqueue[MAX_QUEUES];
-int group[MAX_QUEUES];
+gid_t group[MAX_QUEUES];
 int queues;
 int fd;
 mqd_t q[MAX_QUEUES];
@@ -83,9 +83,9 @@ static void init(void) {
 		.mq_maxmsg = 4096,
 		.mq_msgsize = sizeof(mon_t)
 	};
-	gid_t egid;
 	int i;
 	struct termios ios;
+	struct stat stat;
 
 	init_root();
 
@@ -106,17 +106,14 @@ static void init(void) {
 	cerror("Failed to flush terminal input", ioctl(fd, TCFLSH, 0) < 0);
 	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
 
-	egid = getegid();
-
 	for (i = 0; i < queues; i++) {
-		/* cerror(mqueue[i], setegid(group[i])); */
-		setegid(group[i]);
-
 		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
 		cerror(mqueue[i], q[i] < 0);
-	}
 
-	cerror("setegid", setegid(egid));
+		cerror("fstat", fstat(q[i], &stat));
+		if (stat.st_uid == getuid() && stat.st_gid != group[i])
+			cerror("fchown", fchown(q[i], -1, group[i]));
+	}
 }
 
 static void daemon(void) {

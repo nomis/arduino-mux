@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -62,6 +63,8 @@ static void setup(int argc, char *argv[]) {
 
 		queues++;
 	}
+
+	openlog("arduinomux", LOG_PID, LOG_DAEMON);
 }
 
 static void init_root(void) {
@@ -136,6 +139,18 @@ static void report(int idx, const mon_t *event) {
 	mq_send(q[idx], (const char *)event, sizeof(*event), 0);
 }
 
+static void reset(void) {
+	mon_t event;
+	int i;
+
+	event.tv.tv_sec = 0;
+	event.tv.tv_usec = 0;
+	event.on = false;
+
+	for (i = 0; i < queues; i++)
+		report(i, &event);
+}
+
 static void check(int value) {
 	static bool first = true;
 	static int last[MAX_QUEUES] = { 0 };
@@ -165,6 +180,7 @@ static void check(int value) {
 static void wait(void) {
 	fd_set rfds;
 	struct timeval tv;
+	int ret;
 
 	FD_ZERO(&rfds);
 	FD_SET(fd, &rfds);
@@ -172,7 +188,9 @@ static void wait(void) {
 	tv.tv_sec = 30;
 	tv.tv_usec = 0;
 
-	select(fd + 1, &rfds, NULL, NULL, &tv);
+	ret = select(fd + 1, &rfds, NULL, NULL, &tv);
+	if (ret != 1)
+		syslog(LOG_CRIT, "%s: select() returned %d (errno=%d)\n", device, ret, errno);
 }
 
 static void process(const char *line) {
@@ -229,6 +247,7 @@ static void loop(void) {
 static void cleanup(void) {
 	int i;
 
+	closelog();
 	cerror(device, close(fd));
 
 	for (i = 0; i < queues; i++)
@@ -239,7 +258,10 @@ int main(int argc, char *argv[]) {
 	setup(argc, argv);
 	init();
 	daemon();
+	syslog(LOG_NOTICE, "%s: running\n", device);
+	reset();
 	loop();
+	syslog(LOG_WARNING, "%s: exiting\n", device);
 	cleanup();
 	exit(EXIT_FAILURE);
 }

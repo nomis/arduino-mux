@@ -1,3 +1,4 @@
+#include <sys/fsuid.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -5,6 +6,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <mqueue.h>
 #include <sched.h>
 #include <stdbool.h>
@@ -32,6 +34,8 @@
 /* ---- */
 
 char *device;
+uid_t uid;
+gid_t gid;
 int pin[MAX_QUEUES];
 char *mqueue[MAX_QUEUES];
 gid_t group[MAX_QUEUES];
@@ -44,14 +48,16 @@ int buflen = 0;
 static void setup(int argc, char *argv[]) {
 	int i;
 
-	if (argc < 2 || ((argc - 2) % 3) != 0) {
-		printf("Usage: %s <device> [<pin> <mqueue> <group>]...\n", argv[0]);
+	if (argc < 4 || ((argc - 4) % 3) != 0) {
+		printf("Usage: %s <user> <group> <device> [<pin> <mqueue> <group>]...\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
-	device = argv[1];
+	uid = atoi(argv[1]);
+	gid = atoi(argv[2]);
+	device = argv[3];
 
-	for (i = 2; i + 2 < argc; i += 3) {
+	for (i = 4; i + 2 < argc; i += 3) {
 		if (queues >= MAX_QUEUES) {
 			printf("Too many queues specified\n");
 			exit(EXIT_FAILURE);
@@ -75,8 +81,17 @@ static void init_root(void) {
 		cerror("Failed to get max scheduler priority", (schedp.sched_priority = sched_get_priority_max(SCHED_FIFO)) < 0);
 		schedp.sched_priority -= 15;
 		cerror("Failed to set scheduler policy", sched_setscheduler(0, SCHED_FIFO, &schedp));
-		cerror("Failed to drop SGID permissions", setregid(getgid(), getgid()));
-		cerror("Failed to drop SUID permissions", setreuid(getuid(), getuid()));
+		cerror("Failed to set groups", setgroups(0, NULL));
+		cerror("Failed to set gid", setregid(gid, gid));
+		cerror("Failed to set uid", setreuid(uid, uid));
+	}
+}
+
+static void safe_setfsgid(gid_t newgid) {
+	setfsgid(newgid);
+	if ((gid_t)setfsgid(newgid) != newgid) {
+		fprintf(stderr, "setfsgid %d failed\n", newgid);
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -88,7 +103,17 @@ static void init(void) {
 	};
 	int i;
 	struct termios ios;
-	struct stat mq_st;
+
+	umask(7007);
+
+	for (i = 0; i < queues; i++) {
+		safe_setfsgid(group[i]);
+
+		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
+		cerror(mqueue[i], q[i] < 0);
+	}
+
+	safe_setfsgid(gid);
 
 	init_root();
 
@@ -108,30 +133,6 @@ static void init(void) {
 
 	cerror("Failed to flush terminal input", ioctl(fd, TCFLSH, 0) < 0);
 	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
-
-	umask(0);
-
-	for (i = 0; i < queues; i++) {
-		q[i] = mq_open(mqueue[i], O_WRONLY|O_NONBLOCK|O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, &q_attr);
-		cerror(mqueue[i], q[i] < 0);
-
-		cerror("fstat", fstat(q[i], &mq_st));
-		if (mq_st.st_uid == getuid() && mq_st.st_gid != group[i])
-			cerror("fchown", fchown(q[i], -1, group[i]));
-	}
-}
-
-static void daemon(void) {
-#ifdef FORK
-	pid_t pid = fork();
-	cerror("Failed to become a daemon", pid < 0);
-	if (pid)
-		exit(EXIT_SUCCESS);
-	close(0);
-	close(1);
-	close(2);
-	setsid();
-#endif
 }
 
 static void report(int idx, const mon_t *event) {
@@ -257,7 +258,9 @@ static void cleanup(void) {
 int main(int argc, char *argv[]) {
 	setup(argc, argv);
 	init();
-	daemon();
+#ifdef FORK
+	cerror("Failed to become a daemon", daemon(true, false));
+#endif
 	syslog(LOG_NOTICE, "%s: running\n", device);
 	reset();
 	loop();

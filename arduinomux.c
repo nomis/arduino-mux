@@ -183,7 +183,6 @@ static void init(void) {
 	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
 
 	signal(SIGALRM, fire);
-	alarm(30);
 }
 
 static void report(int idx, const mon_t *event) {
@@ -294,10 +293,12 @@ int main(int argc, char *argv[]) {
 #ifdef FORK
 	cerror("Failed to become a daemon", daemon(true, false));
 #endif
+	alarm(30);
 	syslog(LOG_NOTICE, "%s: running\n", device);
 	reset();
 	loop();
 	syslog(LOG_WARNING, "%s: exiting\n", device);
+	alarm(0);
 	cleanup();
 	exit(EXIT_FAILURE);
 }

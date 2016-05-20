@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <mqueue.h>
+#include <pwd.h>
 #include <sched.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -46,6 +47,8 @@ char buf[32];
 int buflen = 0;
 
 static void setup(int argc, char *argv[]) {
+	struct passwd *pwd;
+	struct group *grp;
 	int i;
 
 	if (argc < 4 || ((argc - 4) % 3) != 0) {
@@ -53,9 +56,26 @@ static void setup(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	uid = atoi(argv[1]);
-	gid = atoi(argv[2]);
+	pwd = getpwnam(argv[1]);
+	if (pwd == NULL) {
+		printf("Unknown user %s\n", argv[1]);
+		exit(EXIT_FAILURE);
+	}
+
+	grp = getgrnam(argv[2]);
+	if (grp == NULL) {
+		printf("Unknown group %s\n", argv[2]);
+		exit(EXIT_FAILURE);
+	}
+
+	uid = pwd->pw_uid;
+	gid = grp->gr_gid;
 	device = argv[3];
+
+	if (uid == 0) {
+		printf("Not running as root\n");
+		exit(EXIT_FAILURE);
+	}
 
 	for (i = 4; i + 2 < argc; i += 3) {
 		if (queues >= MAX_QUEUES) {
@@ -65,7 +85,13 @@ static void setup(int argc, char *argv[]) {
 
 		pin[queues] = 1 << atoi(argv[i]);
 		mqueue[queues] = argv[i + 1];
-		group[queues] = atoi(argv[i + 2]);
+
+		grp = getgrnam(argv[i + 2]);
+		if (grp == NULL) {
+			printf("Unknown group %s\n", argv[i + 2]);
+			exit(EXIT_FAILURE);
+		}
+		group[queues] = grp->gr_gid;
 
 		queues++;
 	}

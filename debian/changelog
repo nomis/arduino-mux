@@ -1,0 +1,5 @@
+arduino-mux (0-1) xenial; urgency=medium
+
+  * Initial release.
+
+ -- Simon Arlott <ubuntu@sa.me.uk>  Fri, 20 May 2016 17:05:00 +0100

@@ -113,6 +113,14 @@ static void init_root(void) {
 	}
 }
 
+static void safe_setfsuid(uid_t newuid) {
+	setfsuid(newuid);
+	if ((uid_t)setfsuid(newuid) != newuid) {
+		fprintf(stderr, "setfsuid %d failed\n", newuid);
+		exit(EXIT_FAILURE);
+	}
+}
+
 static void safe_setfsgid(gid_t newgid) {
 	setfsgid(newgid);
 	if ((gid_t)setfsgid(newgid) != newgid) {
@@ -131,6 +139,7 @@ static void init(void) {
 	struct termios ios;
 
 	umask(7007);
+	safe_setfsuid(uid);
 
 	for (i = 0; i < queues; i++) {
 		safe_setfsgid(group[i]);

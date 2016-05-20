@@ -1,1 +1,8 @@
 arduinomux
+debian/arduino-mux.debhelper.log
+debian/arduino-mux.substvars
+debian/arduino-mux/
+debian/arduino-mux-dbg.debhelper.log
+debian/arduino-mux-dbg.substvars
+debian/arduino-mux-dbg/
+debian/files

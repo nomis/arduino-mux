@@ -101,17 +101,15 @@ static void setup(int argc, char *argv[]) {
 }
 
 static void init_root(void) {
-	if (geteuid() == 0) {
-		struct sched_param schedp;
+	struct sched_param schedp;
 
-		cerror("Failed to lock memory pages", mlockall(MCL_CURRENT | MCL_FUTURE));
-		cerror("Failed to get max scheduler priority", (schedp.sched_priority = sched_get_priority_max(SCHED_FIFO)) < 0);
-		schedp.sched_priority -= 15;
-		cerror("Failed to set scheduler policy", sched_setscheduler(0, SCHED_FIFO, &schedp));
-		cerror("Failed to set groups", setgroups(0, NULL));
-		cerror("Failed to set gid", setregid(gid, gid));
-		cerror("Failed to set uid", setreuid(uid, uid));
-	}
+	cerror("Failed to lock memory pages", mlockall(MCL_CURRENT | MCL_FUTURE));
+	cerror("Failed to get max scheduler priority", (schedp.sched_priority = sched_get_priority_max(SCHED_FIFO)) < 0);
+	schedp.sched_priority -= 15;
+	cerror("Failed to set scheduler policy", sched_setscheduler(0, SCHED_FIFO, &schedp));
+	cerror("Failed to set groups", setgroups(0, NULL));
+	cerror("Failed to set gid", setregid(gid, gid));
+	cerror("Failed to set uid", setreuid(uid, uid));
 }
 
 static void safe_setfsuid(uid_t newuid) {

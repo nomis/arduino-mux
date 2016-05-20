@@ -2,3 +2,9 @@
 
 %:
 	dh $@
+
+override_dh_strip:
+	dh_strip --dbg-package=arduino-mux-dbg
+
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/arduino-mux

@@ -10,6 +10,7 @@
 #include <mqueue.h>
 #include <pwd.h>
 #include <sched.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,13 +130,18 @@ static void safe_setfsgid(gid_t newgid) {
 	}
 }
 
+static void fire(int signum) {
+	syslog(LOG_CRIT, "%s: alarm\n", device);
+	exit(signum);
+}
+
 static void init(void) {
 	struct mq_attr q_attr = {
 		.mq_flags = 0,
 		.mq_maxmsg = 4096,
 		.mq_msgsize = sizeof(mon_t)
 	};
-	int i;
+	int iflags, i;
 	struct termios ios;
 
 	umask(7007);
@@ -155,12 +161,19 @@ static void init(void) {
 	fd = open(device, O_RDWR|O_NONBLOCK);
 	cerror(device, fd < 0);
 
+	iflags = fcntl(fd, F_GETFL, 0);
+	cerror("Failed to get file descriptor flags for opened serial port", iflags < 0);
+	iflags &= ~(O_NONBLOCK|O_NDELAY);
+	iflags = fcntl(fd, F_SETFL, iflags);
+	cerror("Failed to set file descriptor flags", (iflags & O_NONBLOCK) != 0);
+
 	cerror("Failed to get terminal attributes", tcgetattr(fd, &ios));
 	ios.c_iflag &=~ ICLEAR_IFLAG;
 	ios.c_oflag &=~ ICLEAR_OFLAG;
 	ios.c_cflag &=~ ICLEAR_CFLAG;
 	ios.c_cflag |= ISET_CFLAG;
 	ios.c_lflag &=~ ICLEAR_LFLAG;
+	ios.c_lflag |= ICANON;
 	ios.c_cc[VMIN] = 1;
 	ios.c_cc[VTIME] = 0;
 	cfsetispeed(&ios, B115200);
@@ -168,6 +181,9 @@ static void init(void) {
 
 	cerror("Failed to flush terminal input", ioctl(fd, TCFLSH, 0) < 0);
 	cerror("Failed to set terminal attributes", tcsetattr(fd, TCSANOW, &ios));
+
+	signal(SIGALRM, fire);
+	alarm(30);
 }
 
 static void report(int idx, const mon_t *event) {
@@ -213,25 +229,11 @@ static void check(int value) {
 	memcpy(last, state, sizeof(last));
 }
 
-static void wait(void) {
-	fd_set rfds;
-	struct timeval tv;
-	int ret;
-
-	FD_ZERO(&rfds);
-	FD_SET(fd, &rfds);
-
-	tv.tv_sec = 30;
-	tv.tv_usec = 0;
-
-	ret = select(fd + 1, &rfds, NULL, NULL, &tv);
-	if (ret != 1)
-		syslog(LOG_CRIT, "%s: select() returned %d (errno=%d)\n", device, ret, errno);
-}
-
 static void process(const char *line) {
-	if (line[0] == 'V')
+	if (line[0] == 'V') {
 		check(atoi(&line[1]));
+		alarm(30);
+	}
 }
 
 static bool readline(void) {
@@ -244,13 +246,10 @@ static bool readline(void) {
 		remaining = sizeof(buf) - 1;
 	}
 
-	wait();
-
 	errno = 0;
 	len = read(fd, &buf[buflen], remaining);
 	if (len <= 0) {
-		if (errno == 0)
-			errno = EPIPE;
+		syslog(LOG_CRIT, "%s: read %d error %d\n", device, len, errno);
 		return false;
 	}
 
@@ -277,7 +276,6 @@ static bool readline(void) {
 
 static void loop(void) {
 	while (readline());
-	perror(device);
 }
 
 static void cleanup(void) {

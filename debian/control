@@ -15,5 +15,5 @@ Description: Arduino pin monitor multiplexer
 Package: arduino-mux-dbg
 Architecture: any
 Depends: arduino-mux (= ${binary:Version}), ${misc:Depends}
-Description: debugging symboles for arduino-mux
+Description: debugging symbols for arduino-mux
  This package contains the debugging symbols for arduino-mux

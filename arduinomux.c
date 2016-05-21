@@ -18,6 +18,7 @@
 #include <syslog.h>
 #include <termios.h>
 #include <unistd.h>
+#include <systemd/sd-daemon.h>
 
 #include "arduinomux.h"
 #include "monq.h"
@@ -294,6 +295,7 @@ int main(int argc, char *argv[]) {
 	alarm(30);
 	syslog(LOG_NOTICE, "%s: running\n", device);
 	reset();
+	sd_notify(0, "READY=1");
 	loop();
 	syslog(LOG_WARNING, "%s: exiting\n", device);
 	alarm(0);

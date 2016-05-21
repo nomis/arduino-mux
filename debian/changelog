@@ -1,3 +1,9 @@
+arduino-mux (2-1) xenial; urgency=medium
+
+  * Add systemd notify support
+
+ -- Simon Arlott <ubuntu@sa.me.uk>  Sat, 21 May 2016 12:02:52 +0100
+
 arduino-mux (1-1) xenial; urgency=medium
 
   * Add debug package

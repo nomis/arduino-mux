@@ -1,3 +1,9 @@
+arduino-mux (3-2) bionic; urgency=medium
+
+  * Update for bionic
+
+ -- Simon Arlott <ubuntu@sa.me.uk>  Sun, 19 Apr 2020 15:16:09 +0100
+
 arduino-mux (3-1) xenial; urgency=medium
 
   * Don't be verbose

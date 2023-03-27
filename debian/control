@@ -2,8 +2,8 @@ Source: arduino-mux
 Section: misc
 Priority: optional
 Maintainer: Simon Arlott <ubuntu@sa.me.uk>
-Build-Depends: debhelper (>= 9), libsystemd-dev (>= 225)
-Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 12), libsystemd-dev (>= 225)
+Standards-Version: 4.1.4
 
 Package: arduino-mux
 Architecture: any

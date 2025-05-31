@@ -1,3 +1,9 @@
+arduino-mux (3-4) jammy; urgency=medium
+
+  * Update for jammy
+
+ -- Simon Arlott <ubuntu@sa.me.uk>  Sat, 31 May 2025 09:22:15 +0100
+
 arduino-mux (3-3) focal; urgency=medium
 
   * Update for focal
